@@ -1,0 +1,54 @@
+name: jubilant-journey
+runtime: yaml
+backend:
+  url: file://.
+
+resources:
+  password:
+    type: random:RandomPassword
+    properties:
+      length: 16
+      special: true
+      overrideSpecial: '!#$%&*()-_=+[]{}<>:?'
+  postgres-image:
+    type: docker:RemoteImage
+    properties:
+      name: "postgres:15-alpine"
+  postgres-container:
+    type: docker:Container
+    properties:
+      image: ${postgres-image.imageId}
+      name: postgres
+      restart: always
+      wait: true
+      healthcheck:
+        tests: ["CMD-SHELL", "pg_isready", "-d", "postgres"]
+        interval: "30s"
+        retries: 3
+        startPeriod: "0s"
+        timeout: "5s"
+      envs:
+        - POSTGRES_PASSWORD=${password.result}
+      ports:
+        - internal: 5432
+          external: 5432
+  postgres-provider:
+    type: pulumi:providers:postgresql
+    properties:
+      host: localhost
+      port: 5432
+      username: postgres
+      password: ${password.result}
+      database: postgres
+      sslmode: disable
+    options:
+      dependsOn:
+        - ${postgres-container}
+  my_role:
+    type: postgresql:Role
+    properties:
+      name: "my_role"
+      login: true
+      password: mypass
+    options:
+      provider: ${postgres-provider}
